@@ -190,28 +190,23 @@ public:
 			//select
 			current_node = selection(current_board, root);
 			//expand
-			if(current_node->games==0)
-			{
+			if(current_node->games==0){
 				expansion(current_board, current_node);
-				current_node->move.apply(current_board);
 			}
 			//simulate
-			bool win = simulation(current_board, current_node); 
-
+			bool win = simulation(current_board); 
 			//backpropagation
 			backpropagation(current_node, win);
 		}
 		Node *best_node = selectbestchild(root);
 		action::place best_move;
 		// if not null
-		if(best_node)
-		{
+		if(best_node){
 			best_move = best_node->move;
 			delete root;
 			return best_move;
 		}
-		else
-		{
+		else{
 			delete root;
 			return action();
 		}
@@ -244,7 +239,7 @@ public:
 			}
 		}
 	}
-	bool simulation(board& state, Node* node){
+	bool simulation(board& state){
 		// simulation
 		board current_board(state);
 		while (!is_terminal(current_board))
@@ -273,6 +268,7 @@ public:
 			node = node->parent;
 		}
 	}
+public:	
 	Node *selectchild(board &state, Node *node)
 	{
 		if (node->children.size() == 0)
