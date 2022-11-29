@@ -22,85 +22,90 @@
 
 using namespace std;
 class Node
-	{
-	public:
-		Node() {}
-		Node *parent = nullptr;
-		vector<Node *> children;
-		int win = 0, games = 0;
-		board state;
-		action::place move;
-		board::piece_type placer = board::black;
-
-	public:
-		bool isleaf()
-		{
-			if (children.size() == 0)
-			{
-				return true;
-			}
-			return false;
-		}
-		float UCTvalue()
-		{
-			// the case that the node is unvisited
-			if (games == 0)
-			{
-				return DBL_MAX;
-			}
-			// common case
-			float c = sqrt(2);
-			return (float)win / games + c * sqrt(log(parent->win) / games);
-		}
-		int legal_count()
-		{
-			vector<action::place> legalmoves;
-			for (size_t i = 0; i < board::size_x * board::size_y; i++)
-			{
-				board after = state;
-				action::place move(i, state.info().who_take_turns);
-				if (move.apply(after) == board::legal)
-				{
-					legalmoves.emplace_back(action::place(i, state.info().who_take_turns));
-				}
-			}
-			return legalmoves.size();
-		}
-		action::place GetBestMove() const{
-			vector<Node*> sortedChildNodes(children);
-			sort(begin(sortedChildNodes), end(sortedChildNodes), [](Node* x, Node* y)
-				 { return x->games > y->games; });
-			return sortedChildNodes[0]->move;
-		}
-	};
-class agent {
+{
 public:
-	agent(const std::string& args = "") {
+	Node() {}
+	Node *parent = nullptr;
+	vector<Node *> children;
+	int win = 0, games = 0;
+	board state;
+	action::place move;
+	board::piece_type placer = board::black;
+
+public:
+	bool isleaf()
+	{
+		if (children.size() == 0)
+		{
+			return true;
+		}
+		return false;
+	}
+	float UCTvalue()
+	{
+		// the case that the node is unvisited
+		if (games == 0)
+		{
+			return DBL_MAX;
+		}
+		// common case
+		float c = sqrt(2);
+		return (float)win / games + c * sqrt(log(parent->win) / games);
+	}
+	int legal_count()
+	{
+		vector<action::place> legalmoves;
+		for (size_t i = 0; i < board::size_x * board::size_y; i++)
+		{
+			board after = state;
+			action::place move(i, state.info().who_take_turns);
+			if (move.apply(after) == board::legal)
+			{
+				legalmoves.emplace_back(action::place(i, state.info().who_take_turns));
+			}
+		}
+		return legalmoves.size();
+	}
+	action::place GetBestMove() const
+	{
+		vector<Node *> sortedChildNodes(children);
+		sort(begin(sortedChildNodes), end(sortedChildNodes), [](Node *x, Node *y)
+			 { return x->games > y->games; });
+		return sortedChildNodes[0]->move;
+	}
+};
+class agent
+{
+public:
+	agent(const std::string &args = "")
+	{
 		std::stringstream ss("name=unknown role=unknown " + args);
-		for (std::string pair; ss >> pair; ) {
+		for (std::string pair; ss >> pair;)
+		{
 			std::string key = pair.substr(0, pair.find('='));
 			std::string value = pair.substr(pair.find('=') + 1);
-			meta[key] = { value };
+			meta[key] = {value};
 		}
 	}
 	virtual ~agent() {}
-	virtual void open_episode(const std::string& flag = "") {}
-	virtual void close_episode(const std::string& flag = "") {}
-	virtual action take_action(const board& b) { return action(); }
-	virtual bool check_for_win(const board& b) { return false; }
+	virtual void open_episode(const std::string &flag = "") {}
+	virtual void close_episode(const std::string &flag = "") {}
+	virtual action take_action(const board &b) { return action(); }
+	virtual bool check_for_win(const board &b) { return false; }
 
 public:
-	virtual std::string property(const std::string& key) const { return meta.at(key); }
-	virtual void notify(const std::string& msg) { meta[msg.substr(0, msg.find('='))] = { msg.substr(msg.find('=') + 1) }; }
+	virtual std::string property(const std::string &key) const { return meta.at(key); }
+	virtual void notify(const std::string &msg) { meta[msg.substr(0, msg.find('='))] = {msg.substr(msg.find('=') + 1)}; }
 	virtual std::string name() const { return property("name"); }
 	virtual std::string role() const { return property("role"); }
 
 protected:
 	typedef std::string key;
-	struct value {
+	struct value
+	{
 		std::string value;
 		operator std::string() const { return value; }
-		template<typename numeric, typename = typename std::enable_if<std::is_arithmetic<numeric>::value, numeric>::type>
+		template <typename numeric, typename = typename std::enable_if<std::is_arithmetic<numeric>::value, numeric>::type>
 		operator numeric() const { return numeric(std::stod(value)); }
 	};
 	std::map<key, value> meta;
@@ -109,9 +114,11 @@ protected:
 /**
  * base agent for agents with randomness
  */
-class random_agent : public agent {
+class random_agent : public agent
+{
 public:
-	random_agent(const std::string& args = "") : agent(args) {
+	random_agent(const std::string &args = "") : agent(args)
+	{
 		if (meta.find("seed") != meta.end())
 			engine.seed(int(meta["seed"]));
 	}
@@ -125,23 +132,29 @@ protected:
  * random player for both side
  * put a legal piece randomly
  */
-class player : public random_agent {
+class player : public random_agent
+{
 public:
-	player(const std::string& args = "") : random_agent("name=random role=unknown " + args),
-		space(board::size_x * board::size_y), who(board::empty) {
+	player(const std::string &args = "") : random_agent("name=random role=unknown " + args),
+										   space(board::size_x * board::size_y), who(board::empty)
+	{
 		if (name().find_first_of("[]():; ") != std::string::npos)
 			throw std::invalid_argument("invalid name: " + name());
-		if (role() == "black") who = board::black;
-		if (role() == "white") who = board::white;
+		if (role() == "black")
+			who = board::black;
+		if (role() == "white")
+			who = board::white;
 		if (who == board::empty)
 			throw std::invalid_argument("invalid role: " + role());
 		for (size_t i = 0; i < space.size(); i++)
 			space[i] = action::place(i, who);
 	}
 
-	virtual action take_action(const board& state) {
+	virtual action take_action(const board &state)
+	{
 		std::shuffle(space.begin(), space.end(), engine);
-		for (const action::place& move : space) {
+		for (const action::place &move : space)
+		{
 			board after = state;
 			if (move.apply(after) == board::legal)
 				return move;
@@ -154,10 +167,11 @@ private:
 	board::piece_type who;
 };
 
-class MCTSplayer : public random_agent{
+class MCTSplayer : public random_agent
+{
 public:
 	MCTSplayer(const std::string &args = "") : random_agent("name=random role=unknown " + args),
-		space(board::size_x * board::size_y), who(board::empty)
+											   space(board::size_x * board::size_y), who(board::empty)
 	{
 		if (name().find_first_of("[]():; ") != std::string::npos)
 			throw std::invalid_argument("invalid name: " + name());
@@ -175,60 +189,76 @@ public:
 			simulation_time = meta["T"];
 	}
 	virtual ~MCTSplayer() {}
+
 public:
-	virtual action take_action(const board& state)
+	virtual action take_action(const board &state)
 	{
 		Node *root = new Node();
 		Node *current_node;
 		// decide the placer of root
-		if(who == board::black){root->placer = board::white;}
-		else{root->placer = board::black;}
+		if (who == board::black)
+		{
+			root->placer = board::white;
+		}
+		else
+		{
+			root->placer = board::black;
+		}
 
-		for(int i=0; i<simulation_time;i++)
+		for (int i = 0; i < simulation_time; i++)
 		{
 			board current_board(state);
-			//select
+			// select
 			current_node = selection(current_board, root);
-			//expand
-			if(current_node->games==0){
+			// expand
+			if (current_node->games == 0)
+			{
 				expansion(current_board, current_node);
 			}
-			//simulate
-			bool win = simulation(current_board); 
-			//backpropagation
+			// simulate
+			bool win = simulation(current_board);
+			// backpropagation
 			backpropagation(current_node, win);
 		}
 		Node *best_node = selectbestchild(root);
 		action::place best_move;
 		// if not null
-		if(best_node){
+		if (best_node)
+		{
 			best_move = best_node->move;
 			delete root;
 			return best_move;
 		}
-		else{
+		else
+		{
 			delete root;
 			return action();
 		}
 	}
+
 public:
-	Node* selection(board& state, Node* root){
+	Node *selection(board &state, Node *root)
+	{
 		// selection
-		Node* node = root;
-		while(!node->isleaf()){
+		Node *node = root;
+		while (!node->isleaf())
+		{
 			node = selectchild(state, node);
 		}
 		return node;
 	}
-	void expansion(board& state, Node* node){
+	void expansion(board &state, Node *node)
+	{
 		// expansion
 		// expand in random order
 		shuffle(space.begin(), space.end(), engine);
-		for(action::place& move : space){
-			Node* newnode = new Node();
+		for (action::place &move : space)
+		{
+			Node *newnode = new Node();
 			board after = state;
 			// if the move is legal, add child to the node
-			if (after.place(move.position()) == board::legal){
+			if (after.place(move.position()) == board::legal)
+			{
 				newnode->move = move;
 				newnode->parent = node;
 				if (node->placer == board::black)
@@ -239,7 +269,8 @@ public:
 			}
 		}
 	}
-	bool simulation(board& state){
+	bool simulation(board &state)
+	{
 		// simulation
 		board current_board(state);
 		while (!is_terminal(current_board))
@@ -260,15 +291,18 @@ public:
 		else
 			return 1;
 	}
-	void backpropagation(Node* node, bool win){
-		while (node != nullptr){
+	void backpropagation(Node *node, bool win)
+	{
+		while (node != nullptr)
+		{
 			node->games++;
-			if(win)
+			if (win)
 				node->win++;
 			node = node->parent;
 		}
 	}
-public:	
+
+public:
 	Node *selectchild(board &state, Node *node)
 	{
 		if (node->children.size() == 0)
@@ -315,17 +349,15 @@ public:
 				legal_count++;
 		}
 		if (legal_count == 0)
-		{ 
+		{
 			return true;
 		}
 		return false;
 	}
 
 private:
-		std::vector<action::place> space;
-		board::piece_type who;
-		int simulation_time = 100;
-		Node *root = nullptr;
-	};
-
-
+	std::vector<action::place> space;
+	board::piece_type who;
+	int simulation_time = 100;
+	Node *root = nullptr;
+};
