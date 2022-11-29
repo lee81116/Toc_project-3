@@ -15,57 +15,64 @@
 #include <type_traits>
 #include <algorithm>
 #include <fstream>
+#include <queue>
+#include <cfloat>
 #include "board.h"
 #include "action.h"
+
 using namespace std;
-
 class Node
-{
-public:
-	Node() {}
-	Node *parent = nullptr;
-	vector<Node *> children;
-	int win = 0, games = 0;
-	board state;
-	action::place move;
-	board::piece_type placer = board::black;
+	{
+	public:
+		Node() {}
+		Node *parent = nullptr;
+		vector<Node *> children;
+		int win = 0, games = 0;
+		board state;
+		action::place move;
+		board::piece_type placer = board::black;
 
-public:
-	bool isleaf()
-	{
-		if (children.size() == 0)
+	public:
+		bool isleaf()
 		{
-			return true;
-		}
-		return false;
-	}
-	float UCTvalue()
-	{
-		// the case that the node is unvisited
-		if (games == 0)
-		{
-			return DBL_MAX;
-		}
-		// common case
-		float c = sqrt(2);
-		return (float)win / games + c * sqrt(log(parent->win) / games);
-	}
-	int legal_count()
-	{
-		vector<action::place> legalmoves;
-		for (size_t i = 0; i < board::size_x * board::size_y; i++)
-		{
-			board after = state;
-			action::place move(i, state.info().who_take_turns);
-			if (move.apply(after) == board::legal)
+			if (children.size() == 0)
 			{
-				legalmoves.emplace_back(action::place(i, state.info().who_take_turns));
+				return true;
 			}
+			return false;
 		}
-		return legalmoves.size();
-	}
-};
-
+		float UCTvalue()
+		{
+			// the case that the node is unvisited
+			if (games == 0)
+			{
+				return DBL_MAX;
+			}
+			// common case
+			float c = sqrt(2);
+			return (float)win / games + c * sqrt(log(parent->win) / games);
+		}
+		int legal_count()
+		{
+			vector<action::place> legalmoves;
+			for (size_t i = 0; i < board::size_x * board::size_y; i++)
+			{
+				board after = state;
+				action::place move(i, state.info().who_take_turns);
+				if (move.apply(after) == board::legal)
+				{
+					legalmoves.emplace_back(action::place(i, state.info().who_take_turns));
+				}
+			}
+			return legalmoves.size();
+		}
+		action::place GetBestMove() const{
+			vector<Node*> sortedChildNodes(children);
+			sort(begin(sortedChildNodes), end(sortedChildNodes), [](Node* x, Node* y)
+				 { return x->games > y->games; });
+			return sortedChildNodes[0]->move;
+		}
+	};
 class agent {
 public:
 	agent(const std::string& args = "") {
@@ -146,11 +153,11 @@ private:
 	std::vector<action::place> space;
 	board::piece_type who;
 };
-class MCTSplayer : public random_agent
-{
+
+class MCTSplayer : public random_agent{
 public:
 	MCTSplayer(const std::string &args = "") : random_agent("name=random role=unknown " + args),
-											   space(board::size_x * board::size_y), who(board::empty)
+		space(board::size_x * board::size_y), who(board::empty)
 	{
 		if (name().find_first_of("[]():; ") != std::string::npos)
 			throw std::invalid_argument("invalid name: " + name());
@@ -168,39 +175,36 @@ public:
 			simulation_time = meta["T"];
 	}
 	virtual ~MCTSplayer() {}
-
 public:
-	virtual action take_action(const board &state)
+	virtual action take_action(const board& state)
 	{
-		// std::cout<<"--------take acion-------"<<std::endl;
 		Node *root = new Node();
 		Node *current_node;
-		// std::cout<<root->w<<std::endl;
-		if (root->placer == board::black)
-			root->placer = board::white;
-		else
-			root->placer = board::black;
-		for (int i = 0; i < simulation_time; i++)
+		// decide the placer of root
+		if(who == board::black){root->placer = board::white;}
+		else{root->placer = board::black;}
+
+		for(int i=0; i<simulation_time;i++)
 		{
 			board current_board(state);
-			// select
+			//select
 			current_node = selection(current_board, root);
-			// expand
-			if (current_node->games == 0)
+			//expand
+			if(current_node->games==0)
 			{
 				expansion(current_board, current_node);
 				current_node->move.apply(current_board);
 			}
-			// simulate
-			int win = simulation(current_board, current_node);
+			//simulate
+			bool win = simulation(current_board, current_node); 
 
-			// backpropagation
+			//backpropagation
 			backpropagation(current_node, win);
 		}
-		board current_board(state);
 		Node *best_node = selectbestchild(root);
 		action::place best_move;
-		if (best_node)
+		// if not null
+		if(best_node)
 		{
 			best_move = best_node->move;
 			delete root;
@@ -212,8 +216,63 @@ public:
 			return action();
 		}
 	}
-
 public:
+	Node* selection(board& state, Node* root){
+		// selection
+		Node* node = root;
+		while(!node->isleaf()){
+			node = selectchild(state, node);
+		}
+		return node;
+	}
+	void expansion(board& state, Node* node){
+		// expansion
+		// expand in random order
+		shuffle(space.begin(), space.end(), engine);
+		for(action::place& move : space){
+			Node* newnode = new Node();
+			board after = state;
+			// if the move is legal, add child to the node
+			if (after.place(move.position()) == board::legal){
+				newnode->move = move;
+				newnode->parent = node;
+				if (node->placer == board::black)
+					newnode->placer = board::white;
+				else
+					newnode->placer = board::black;
+				node->children.emplace_back(newnode);
+			}
+		}
+	}
+	bool simulation(board& state, Node* node){
+		// simulation
+		board current_board(state);
+		while (!is_terminal(current_board))
+		{
+			std::shuffle(space.begin(), space.end(), engine);
+			for (const action::place &move : space)
+			{
+				board after(current_board);
+				if (after.place(move.position()) == board::legal)
+				{
+					current_board.place(move.position());
+				}
+			}
+		}
+		board::piece_type w = current_board.get_who_take_turn();
+		if (w == who)
+			return 0;
+		else
+			return 1;
+	}
+	void backpropagation(Node* node, bool win){
+		while (node != nullptr){
+			node->games++;
+			if(win)
+				node->win++;
+			node = node->parent;
+		}
+	}
 	Node *selectchild(board &state, Node *node)
 	{
 		if (node->children.size() == 0)
@@ -249,114 +308,28 @@ public:
 		}
 		return nullptr;
 	}
-	Node *selection(board &state, Node *root)
+	bool is_terminal(const board &cur_state)
 	{
-		// selection
-		Node *node = root;
-		while (!node->isleaf())
+		int legal_count = 0;
+
+		for (const action::place &move : space)
 		{
-			node = selectchild(state, node);
-		}
-		return node;
-	}
-	void expansion(board &state, Node *node)
-	{
-		// expansion
-		// expand in random order
-		shuffle(space.begin(), space.end(), engine);
-		for (action::place &move : space)
-		{
-			Node *newnode = new Node();
-			board after = state;
-			// if the move is legal, add child
+			board after = cur_state;
 			if (after.place(move.position()) == board::legal)
-			{
-				newnode->move = move;
-				newnode->parent = node;
-				if (node->placer == board::black)
-					newnode->placer = board::white;
-				else
-					newnode->placer = board::black;
-				node->children.emplace_back(newnode);
-			}
+				legal_count++;
 		}
-	}
-	int simulation(board &state, Node *node)
-	{
-		// simulation
-		// rollout by random policy
-		vector<action::place> rollout_play = rollout(state, node);
-		// check the winer
-		board::piece_type winner;
-		if (rollout_play.size() > 0)
-		{
-			winner = rollout_play.back().color();
+		if (legal_count == 0)
+		{ 
+			return true;
 		}
-		else
-		{
-			winner = node->move.color();
-		}
-		if (winner == who)
-			return 1;
-		else
-			return 0;
-	}
-	void backpropagation(Node *node, int win)
-	{
-		while (node != nullptr)
-		{
-			node->games++;
-			node->win += win;
-			node = node->parent;
-		}
-	}
-	vector<action::place> rollout(board &state, Node *node)
-	{
-		if (node->legal_count() > 0)
-		{
-			vector<action::place> rollout_play = random_rollout(state, node);
-			return rollout_play;
-		}
-		else
-		{
-			vector<action::place> rollout_play(0);
-			return rollout_play;
-		}
-	}
-	vector<action::place> random_rollout(board &state, Node *node)
-	{
-		size_t i;
-		board temp;
-		board after;
-		after = state;
-		std::array<int, board::size_x * board::size_y> pos;
-		std::iota(pos.begin(), pos.end(), 1);
-		std::shuffle(pos.begin(), pos.end(), engine);
-		vector<action::place> rollout_play;
-		while (true)
-		{
-			for (i = 0; i < board::size_x * board::size_y; i++)
-			{
-				temp = after;
-				action::place move(pos[i], after.info().who_take_turns);
-				if (move.apply(temp) == board::legal)
-				{
-					after = temp;
-					rollout_play.push_back(move);
-					break;
-				}
-			}
-			if (i == board::size_x * board::size_y)
-			{
-				break;
-			}
-		}
-		return rollout_play;
+		return false;
 	}
 
 private:
-	std::vector<action::place> space;
-	board::piece_type who;
-	int simulation_time = 100;
-	Node *root = nullptr;
-};
+		std::vector<action::place> space;
+		board::piece_type who;
+		int simulation_time = 100;
+		Node *root = nullptr;
+	};
+
+
