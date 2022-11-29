@@ -193,7 +193,7 @@ public:
 public:
 	virtual action take_action(const board &state)
 	{
-		Node *root = new Node();
+		root = new Node();
 		Node *current_node;
 		// decide the placer of root
 		if (who == board::black)
@@ -211,7 +211,7 @@ public:
 			// select
 			current_node = selection(current_board, root);
 			// expand
-			if (current_node->games == 0)
+			if (current_node->games != 0)
 			{
 				expansion(current_board, current_node);
 			}
@@ -313,6 +313,7 @@ public:
 		// sort the children by its UCT value
 		sort(begin(sortedChildNodes), end(sortedChildNodes), [](Node *x, Node *y)
 			 { return x->UCTvalue() > y->UCTvalue(); });
+		// place the move of the largest UCT child
 		state.place(sortedChildNodes.at(0)->move.position());
 		// return the node with largest UCT value
 		return sortedChildNodes.at(0);
