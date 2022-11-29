@@ -17,6 +17,54 @@
 #include <fstream>
 #include "board.h"
 #include "action.h"
+using namespace std;
+
+class Node
+{
+public:
+	Node() {}
+	Node *parent = nullptr;
+	vector<Node *> children;
+	int win = 0, games = 0;
+	board state;
+	action::place move;
+	board::piece_type placer = board::black;
+
+public:
+	bool isleaf()
+	{
+		if (children.size() == 0)
+		{
+			return true;
+		}
+		return false;
+	}
+	float UCTvalue()
+	{
+		// the case that the node is unvisited
+		if (games == 0)
+		{
+			return DBL_MAX;
+		}
+		// common case
+		float c = sqrt(2);
+		return (float)win / games + c * sqrt(log(parent->win) / games);
+	}
+	int legal_count()
+	{
+		vector<action::place> legalmoves;
+		for (size_t i = 0; i < board::size_x * board::size_y; i++)
+		{
+			board after = state;
+			action::place move(i, state.info().who_take_turns);
+			if (move.apply(after) == board::legal)
+			{
+				legalmoves.emplace_back(action::place(i, state.info().who_take_turns));
+			}
+		}
+		return legalmoves.size();
+	}
+};
 
 class agent {
 public:
